@@ -1,5 +1,5 @@
 // Controlador de autenticación
-import { User } from '../models/index.js';
+import { User, Company } from '../models/index.js';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 
@@ -44,6 +44,34 @@ export const login = async (req, res) => {
         success: false,
         message: 'Credenciales inválidas'
       });
+    }
+
+    // Validación: Si role_id es diferente de '1', debe tener company_id válido y activo
+    if (user.role_id !== '1' && user.role_id !== 1) {
+      // Verificar que tenga company_id
+      if (!user.company_id) {
+        return res.status(403).json({
+          success: false,
+          message: 'El usuario no tiene una empresa asignada'
+        });
+      }
+
+      // Verificar que la empresa exista y esté activa
+      const company = await Company.findByPk(user.company_id);
+      
+      if (!company) {
+        return res.status(403).json({
+          success: false,
+          message: 'La empresa asociada no existe'
+        });
+      }
+
+      if (!company.is_active) {
+        return res.status(403).json({
+          success: false,
+          message: 'La empresa asociada está inactiva'
+        });
+      }
     }
 
     // Generar token JWT

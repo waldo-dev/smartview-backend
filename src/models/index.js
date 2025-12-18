@@ -10,7 +10,7 @@ import User from './User.js';
 import Dashboard from './Dashboard.js';
 import UserDashboard from './UserDashboard.js';
 
-// Definir relaciones belongsToMany (debe estar aquí después de definir todos los modelos)
+// Relaciones belongsToMany (muchos a muchos a través de UserDashboard)
 User.belongsToMany(Dashboard, {
   through: UserDashboard,
   foreignKey: 'user_id',
@@ -23,5 +23,26 @@ Dashboard.belongsToMany(User, {
   foreignKey: 'dashboard_id',
   otherKey: 'user_id',
   as: 'users'
+});
+
+// Relaciones directas con UserDashboard (hasMany y belongsTo)
+User.hasMany(UserDashboard, {
+  foreignKey: 'user_id',
+  as: 'userDashboards'
+});
+
+Dashboard.hasMany(UserDashboard, {
+  foreignKey: 'dashboard_id',
+  as: 'userDashboards'
+});
+
+UserDashboard.belongsTo(User, {
+  foreignKey: 'user_id',
+  as: 'user'
+});
+
+UserDashboard.belongsTo(Dashboard, {
+  foreignKey: 'dashboard_id',
+  as: 'dashboard'
 });
 

@@ -1,4 +1,5 @@
-import { Company } from '../models/index.js';
+import { Company, User, Dashboard } from '../models/index.js';
+import { logDelete, logCascadeDelete } from '../utils/dbLogger.js';
 
 /**
  * @route   GET /api/companies
@@ -162,7 +163,15 @@ export const deleteCompany = async (req, res) => {
     }
 
     if (hard === 'true') {
+      // Loggear antes de eliminar para rastrear CASCADE
+      const companyId = company.id;
+      logDelete('company', companyId);
+      console.warn(`⚠️ ADVERTENCIA: Eliminando empresa ${companyId} - Esto eliminará en CASCADE todos los usuarios y dashboards relacionados`);
+      
       await company.destroy();
+      
+      logCascadeDelete('company', companyId, ['user', 'dashboard', 'user_dashboard']);
+      
       return res.status(200).json({
         success: true,
         message: 'Empresa eliminada permanentemente'
@@ -185,4 +194,5 @@ export const deleteCompany = async (req, res) => {
     });
   }
 };
+
 

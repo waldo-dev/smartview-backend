@@ -27,3 +27,4 @@ router.get('/dashboards/:id/embed-token', getEmbedToken);
 
 export default router;
 
+

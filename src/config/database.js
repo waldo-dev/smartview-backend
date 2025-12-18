@@ -3,6 +3,18 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
+// Configurar logging personalizado para detectar DELETE
+const logging = process.env.NODE_ENV === 'development' 
+  ? (query) => {
+      // Loggear especialmente las operaciones DELETE
+      if (query.includes('DELETE') || query.includes('delete')) {
+        console.warn(`⚠️ [DELETE QUERY] ${new Date().toISOString()}:`, query);
+      } else {
+        console.log(query);
+      }
+    }
+  : false;
+
 const sequelize = new Sequelize(
   process.env.DB_NAME,
   process.env.DB_USER,
@@ -11,7 +23,7 @@ const sequelize = new Sequelize(
     host: process.env.DB_HOST,
     port: process.env.DB_PORT || 5432,
     dialect: 'postgres',
-    logging: process.env.NODE_ENV === 'development' ? console.log : false,
+    logging: logging,
     pool: {
       max: 5,
       min: 0,
@@ -22,4 +34,5 @@ const sequelize = new Sequelize(
 );
 
 export default sequelize;
+
 

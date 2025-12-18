@@ -15,7 +15,7 @@ const Dashboard = sequelize.define('dashboard', {
       model: Company,
       key: 'id'
     },
-    onDelete: 'CASCADE'
+    onDelete: 'RESTRICT'
   },
   name: {
     type: DataTypes.STRING(100),

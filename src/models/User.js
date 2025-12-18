@@ -15,7 +15,7 @@ const User = sequelize.define('user', {
       model: Company,
       key: 'id'
     },
-    onDelete: 'CASCADE'
+    onDelete: 'RESTRICT'
   },
   name: {
     type: DataTypes.STRING(100),
