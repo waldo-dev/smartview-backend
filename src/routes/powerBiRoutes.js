@@ -2,10 +2,19 @@ import express from 'express';
 import {
   getDashboards,
   getDashboardById,
-  getEmbedToken
+  getEmbedToken,
+  getWorkspaces,
+  syncDashboards,
+  syncDashboardsForCompany
 } from '../controllers/powerBiController.js';
 
 const router = express.Router();
+
+/**
+ * @route   GET /api/powerbi/workspaces
+ * @desc    Obtener lista de workspaces disponibles en Power BI
+ */
+router.get('/workspaces', getWorkspaces);
 
 /**
  * @route   GET /api/powerbi/dashboards
@@ -25,6 +34,19 @@ router.get('/dashboards/:id', getDashboardById);
  */
 router.get('/dashboards/:id/embed-token', getEmbedToken);
 
+/**
+ * @route   POST /api/powerbi/dashboards/sync
+ * @desc    Sincronizar dashboards de Power BI con la base de datos
+ */
+router.post('/dashboards/sync', syncDashboards);
+
+/**
+ * @route   POST /api/powerbi/dashboards/sync/:company_id
+ * @desc    Sincronizar dashboards de Power BI para una empresa específica
+ */
+router.post('/dashboards/sync/:company_id', syncDashboardsForCompany);
+
 export default router;
+
 
 

@@ -1,4 +1,4 @@
-import { UserDashboard, User, Dashboard } from '../models/index.js';
+import { UserDashboard, User, Dashboard, Company } from '../models/index.js';
 
 /**
  * @route   GET /api/user-dashboards
@@ -149,7 +149,13 @@ export const assignDashboardToUser = async (req, res) => {
     }
 
     // Verificar que el usuario existe
-    const user = await User.findByPk(user_id);
+    const user = await User.findByPk(user_id, {
+      include: [{
+        model: Company,
+        as: 'company',
+        attributes: ['id', 'name']
+      }]
+    });
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -158,11 +164,25 @@ export const assignDashboardToUser = async (req, res) => {
     }
 
     // Verificar que el dashboard existe
-    const dashboard = await Dashboard.findByPk(dashboard_id);
+    const dashboard = await Dashboard.findByPk(dashboard_id, {
+      include: [{
+        model: Company,
+        as: 'company',
+        attributes: ['id', 'name']
+      }]
+    });
     if (!dashboard) {
       return res.status(404).json({
         success: false,
         message: 'Dashboard no encontrado'
+      });
+    }
+
+    // Validar que el usuario y el dashboard pertenezcan a la misma empresa
+    if (user.company_id && dashboard.company_id && user.company_id !== dashboard.company_id) {
+      return res.status(400).json({
+        success: false,
+        message: 'El usuario y el dashboard deben pertenecer a la misma empresa'
       });
     }
 
@@ -186,7 +206,21 @@ export const assignDashboardToUser = async (req, res) => {
     res.status(201).json({
       success: true,
       message: 'Permiso asignado exitosamente',
-      data: userDashboard
+      data: {
+        user_id: userDashboard.user_id,
+        dashboard_id: userDashboard.dashboard_id,
+        user: {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          company_id: user.company_id
+        },
+        dashboard: {
+          id: dashboard.id,
+          name: dashboard.name,
+          company_id: dashboard.company_id
+        }
+      }
     });
   } catch (error) {
     console.error('Error en assignDashboardToUser:', error);
@@ -301,14 +335,316 @@ export const assignMultipleDashboardsToUser = async (req, res) => {
     res.status(201).json({
       success: true,
       message: `Se asignaron ${results.length} permisos`,
-      data: results,
-      errors: errors.length > 0 ? errors : undefined
+      data: {
+        created: results.length,
+        skipped: errors.length,
+        permissions: results,
+        errors: errors.length > 0 ? errors : undefined
+      }
     });
   } catch (error) {
     console.error('Error en assignMultipleDashboardsToUser:', error);
     res.status(500).json({
       success: false,
       message: 'Error al asignar permisos',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * @route   GET /api/companies/:company_id/assignments
+ * @desc    Obtener todas las asignaciones de dashboards a usuarios de una empresa
+ * @access  Public/Private
+ */
+export const getCompanyAssignments = async (req, res) => {
+  try {
+    const { company_id } = req.params;
+
+    // Verificar que la empresa existe
+    const company = await Company.findByPk(company_id);
+    if (!company) {
+      return res.status(404).json({
+        success: false,
+        message: 'Empresa no encontrada'
+      });
+    }
+
+    // Obtener todos los dashboards de la empresa con sus usuarios asignados
+    const dashboards = await Dashboard.findAll({
+      where: { company_id, is_active: true },
+      include: [{
+        model: User,
+        as: 'users',
+        through: {
+          attributes: []
+        },
+        where: { is_active: true, company_id },
+        attributes: { exclude: ['password'] },
+        required: false // LEFT JOIN para incluir dashboards sin usuarios asignados
+      }],
+      order: [['name', 'ASC']]
+    });
+
+    res.status(200).json({
+      success: true,
+      data: {
+        company: {
+          id: company.id,
+          name: company.name
+        },
+        dashboards: dashboards.map(dashboard => ({
+          id: dashboard.id,
+          name: dashboard.name,
+          powerbi_report_id: dashboard.powerbi_report_id,
+          users: dashboard.users || []
+        }))
+      }
+    });
+  } catch (error) {
+    console.error('Error en getCompanyAssignments:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error al obtener asignaciones de la empresa',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * @route   POST /api/companies/:company_id/dashboards/:dashboard_id/assign-users
+ * @desc    Asignar un dashboard a múltiples usuarios de la empresa
+ * @access  Public/Private
+ */
+export const assignDashboardToCompanyUsers = async (req, res) => {
+  try {
+    const { company_id, dashboard_id } = req.params;
+    const { user_ids } = req.body; // Array de user_ids
+
+    if (!user_ids || !Array.isArray(user_ids) || user_ids.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'user_ids debe ser un array con al menos un elemento'
+      });
+    }
+
+    // Verificar que la empresa existe
+    const company = await Company.findByPk(company_id);
+    if (!company) {
+      return res.status(404).json({
+        success: false,
+        message: 'Empresa no encontrada'
+      });
+    }
+
+    // Verificar que el dashboard existe y pertenece a la empresa
+    const dashboard = await Dashboard.findOne({
+      where: { id: dashboard_id, company_id }
+    });
+
+    if (!dashboard) {
+      return res.status(404).json({
+        success: false,
+        message: 'Dashboard no encontrado o no pertenece a esta empresa'
+      });
+    }
+
+    // Verificar que todos los usuarios existen y pertenecen a la empresa
+    const users = await User.findAll({
+      where: {
+        id: user_ids,
+        company_id: company_id,
+        is_active: true
+      }
+    });
+
+    if (users.length !== user_ids.length) {
+      return res.status(400).json({
+        success: false,
+        message: 'Uno o más usuarios no fueron encontrados o no pertenecen a esta empresa'
+      });
+    }
+
+    const results = [];
+    const skipped = [];
+    const errors = [];
+
+    for (const user_id of user_ids) {
+      try {
+        // Verificar si ya existe el permiso
+        const existing = await UserDashboard.findOne({
+          where: { user_id, dashboard_id }
+        });
+
+        if (existing) {
+          skipped.push({
+            user_id,
+            reason: 'El usuario ya tiene acceso a este dashboard'
+          });
+          continue;
+        }
+
+        const userDashboard = await UserDashboard.create({
+          user_id,
+          dashboard_id
+        });
+
+        results.push(userDashboard);
+      } catch (error) {
+        errors.push({
+          user_id,
+          error: error.message
+        });
+      }
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Se asignó el dashboard a ${results.length} usuario(s) de la empresa`,
+      data: {
+        company: {
+          id: company.id,
+          name: company.name
+        },
+        dashboard: {
+          id: dashboard.id,
+          name: dashboard.name
+        },
+        assigned: results.length,
+        skipped: skipped.length,
+        errors: errors.length,
+        details: {
+          assigned_users: results.map(r => r.user_id),
+          skipped_users: skipped,
+          errors: errors.length > 0 ? errors : undefined
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Error en assignDashboardToCompanyUsers:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error al asignar dashboard a usuarios de la empresa',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * @route   POST /api/companies/:company_id/users/:user_id/assign-dashboards
+ * @desc    Asignar múltiples dashboards de la empresa a un usuario
+ * @access  Public/Private
+ */
+export const assignCompanyDashboardsToUser = async (req, res) => {
+  try {
+    const { company_id, user_id } = req.params;
+    const { dashboard_ids } = req.body; // Array de dashboard_ids
+
+    if (!dashboard_ids || !Array.isArray(dashboard_ids) || dashboard_ids.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'dashboard_ids debe ser un array con al menos un elemento'
+      });
+    }
+
+    // Verificar que la empresa existe
+    const company = await Company.findByPk(company_id);
+    if (!company) {
+      return res.status(404).json({
+        success: false,
+        message: 'Empresa no encontrada'
+      });
+    }
+
+    // Verificar que el usuario existe y pertenece a la empresa
+    const user = await User.findOne({
+      where: { id: user_id, company_id, is_active: true }
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'Usuario no encontrado o no pertenece a esta empresa'
+      });
+    }
+
+    // Verificar que todos los dashboards existen y pertenecen a la empresa
+    const dashboards = await Dashboard.findAll({
+      where: {
+        id: dashboard_ids,
+        company_id: company_id,
+        is_active: true
+      }
+    });
+
+    if (dashboards.length !== dashboard_ids.length) {
+      return res.status(400).json({
+        success: false,
+        message: 'Uno o más dashboards no fueron encontrados o no pertenecen a esta empresa'
+      });
+    }
+
+    const results = [];
+    const skipped = [];
+    const errors = [];
+
+    for (const dashboard_id of dashboard_ids) {
+      try {
+        // Verificar si ya existe el permiso
+        const existing = await UserDashboard.findOne({
+          where: { user_id, dashboard_id }
+        });
+
+        if (existing) {
+          skipped.push({
+            dashboard_id,
+            reason: 'El usuario ya tiene acceso a este dashboard'
+          });
+          continue;
+        }
+
+        const userDashboard = await UserDashboard.create({
+          user_id,
+          dashboard_id
+        });
+
+        results.push(userDashboard);
+      } catch (error) {
+        errors.push({
+          dashboard_id,
+          error: error.message
+        });
+      }
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Se asignaron ${results.length} dashboard(s) al usuario`,
+      data: {
+        company: {
+          id: company.id,
+          name: company.name
+        },
+        user: {
+          id: user.id,
+          name: user.name,
+          email: user.email
+        },
+        assigned: results.length,
+        skipped: skipped.length,
+        errors: errors.length,
+        details: {
+          assigned_dashboards: results.map(r => r.dashboard_id),
+          skipped_dashboards: skipped,
+          errors: errors.length > 0 ? errors : undefined
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Error en assignCompanyDashboardsToUser:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error al asignar dashboards al usuario',
       error: error.message
     });
   }

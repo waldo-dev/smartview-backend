@@ -147,23 +147,101 @@ class PowerBIService {
   }
 
   /**
-   * Obtener todos los dashboards/reportes del workspace
+   * Obtener todos los workspaces/grupos disponibles
    */
-  async getDashboards() {
+  async getWorkspaces() {
     try {
-      const endpoint = `/groups/${this.workspaceId}/reports`;
+      const endpoint = '/groups';
+      const response = await this.makeAuthenticatedRequest('GET', endpoint);
+      
+      return response.value.map(workspace => ({
+        id: workspace.id,
+        name: workspace.name,
+        isReadOnly: workspace.isReadOnly,
+        isOnDedicatedCapacity: workspace.isOnDedicatedCapacity,
+        type: workspace.type
+      }));
+    } catch (error) {
+      console.error('Error al obtener workspaces:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Buscar un workspace por nombre (búsqueda exacta o parcial)
+   */
+  async findWorkspaceByName(workspaceName, exactMatch = true) {
+    try {
+      const workspaces = await this.getWorkspaces();
+      
+      if (exactMatch) {
+        return workspaces.find(ws => ws.name === workspaceName || ws.name.toLowerCase() === workspaceName.toLowerCase());
+      } else {
+        // Búsqueda parcial (case insensitive)
+        return workspaces.find(ws => 
+          ws.name.toLowerCase().includes(workspaceName.toLowerCase()) ||
+          workspaceName.toLowerCase().includes(ws.name.toLowerCase())
+        );
+      }
+    } catch (error) {
+      console.error('Error al buscar workspace por nombre:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Obtener todos los dashboards/reportes del workspace
+   * @param {string} workspaceId - ID del workspace (opcional, usa el configurado por defecto)
+   */
+  async getDashboards(workspaceId = null) {
+    try {
+      const targetWorkspaceId = workspaceId || this.workspaceId;
+      if (!targetWorkspaceId) {
+        throw new Error('Workspace ID es requerido');
+      }
+
+      const endpoint = `/groups/${targetWorkspaceId}/reports`;
       const response = await this.makeAuthenticatedRequest('GET', endpoint);
       
       return response.value.map(report => ({
         id: report.id,
         name: report.name,
         embedUrl: report.embedUrl,
-        workspaceId: report.workspaceId || this.workspaceId,
+        workspaceId: report.workspaceId || targetWorkspaceId,
         webUrl: report.webUrl,
         datasetId: report.datasetId
       }));
     } catch (error) {
       console.error('Error al obtener dashboards:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Obtener dashboards de un workspace por nombre de empresa
+   * Busca un workspace cuyo nombre coincida con el nombre de la empresa
+   */
+  async getDashboardsByCompanyName(companyName, exactMatch = true) {
+    try {
+      const workspace = await this.findWorkspaceByName(companyName, exactMatch);
+      
+      if (!workspace) {
+        throw new Error(`No se encontró ningún workspace con el nombre "${companyName}"`);
+      }
+
+      console.log(`📁 Workspace encontrado: ${workspace.name} (ID: ${workspace.id})`);
+      
+      const dashboards = await this.getDashboards(workspace.id);
+      
+      return {
+        workspace: {
+          id: workspace.id,
+          name: workspace.name
+        },
+        dashboards
+      };
+    } catch (error) {
+      console.error('Error al obtener dashboards por nombre de empresa:', error);
       throw error;
     }
   }

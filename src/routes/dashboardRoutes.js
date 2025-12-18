@@ -4,7 +4,8 @@ import {
   getDashboardById,
   createDashboard,
   updateDashboard,
-  deleteDashboard
+  deleteDashboard,
+  reassignDashboardCompany
 } from '../controllers/dashboardController.js';
 
 const router = express.Router();
@@ -39,6 +40,13 @@ router.put('/:id', updateDashboard);
  */
 router.delete('/:id', deleteDashboard);
 
+/**
+ * @route   PUT /api/dashboards/:id/assign-company
+ * @desc    Reasignar un dashboard a otra empresa
+ */
+router.put('/:id/assign-company', reassignDashboardCompany);
+
 export default router;
+
 
 

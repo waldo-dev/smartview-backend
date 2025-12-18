@@ -5,7 +5,10 @@ import {
   getUsersByDashboard,
   assignDashboardToUser,
   removeDashboardFromUser,
-  assignMultipleDashboardsToUser
+  assignMultipleDashboardsToUser,
+  getCompanyAssignments,
+  assignDashboardToCompanyUsers,
+  assignCompanyDashboardsToUser
 } from '../controllers/userDashboardController.js';
 
 const router = express.Router();
@@ -47,5 +50,6 @@ router.post('/bulk', assignMultipleDashboardsToUser);
 router.delete('/', removeDashboardFromUser);
 
 export default router;
+
 
 

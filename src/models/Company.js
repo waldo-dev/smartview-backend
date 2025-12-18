@@ -12,7 +12,7 @@ const Company = sequelize.define('company', {
     allowNull: false
   },
   industry: {
-    type: DataTypes.STRING(50),
+    type: DataTypes.STRING(),
     allowNull: true
   },
   is_active: {

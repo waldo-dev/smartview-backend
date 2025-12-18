@@ -5,6 +5,7 @@ import userRoutes from './userRoutes.js';
 import dashboardRoutes from './dashboardRoutes.js';
 import userDashboardRoutes from './userDashboardRoutes.js';
 import powerBiRoutes from './powerBiRoutes.js';
+import dbDebugRoutes from './dbDebugRoutes.js';
 
 const router = express.Router();
 
@@ -25,6 +26,11 @@ router.use('/user-dashboards', userDashboardRoutes);
 
 // Rutas de Power BI
 router.use('/powerbi', powerBiRoutes);
+
+// Rutas de debug (solo para desarrollo)
+if (process.env.NODE_ENV !== 'production') {
+  router.use('/debug', dbDebugRoutes);
+}
 
 export default router;
 
