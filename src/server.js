@@ -24,8 +24,67 @@ app.get('/', (req, res) => {
 });
 
 // Ruta de health check
-app.get('/health', (req, res) => {
-  res.json({ status: 'OK', timestamp: new Date().toISOString() });
+app.get('/health', async (req, res) => {
+  const healthStatus = {
+    status: 'OK',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    environment: process.env.NODE_ENV || 'development',
+    version: '1.0.0',
+    checks: {
+      server: {
+        status: 'OK',
+        message: 'Server is running'
+      },
+      database: {
+        status: 'unknown',
+        message: 'Checking...'
+      },
+      powerbi: {
+        status: 'unknown',
+        message: 'Not checked',
+        configured: false
+      }
+    }
+  };
+
+  try {
+    // Verificar conexión a la base de datos
+    await sequelize.authenticate();
+    healthStatus.checks.database = {
+      status: 'OK',
+      message: 'Database connection successful'
+    };
+  } catch (error) {
+    healthStatus.checks.database = {
+      status: 'ERROR',
+      message: 'Database connection failed',
+      error: error.message
+    };
+    healthStatus.status = 'DEGRADED';
+  }
+
+  // Verificar configuración de Power BI (sin hacer conexión real)
+  try {
+    const powerBiService = (await import('./services/powerBiService.js')).default;
+    healthStatus.checks.powerbi.configured = powerBiService.isConfigured();
+    if (healthStatus.checks.powerbi.configured) {
+      healthStatus.checks.powerbi.status = 'CONFIGURED';
+      healthStatus.checks.powerbi.message = 'Power BI service is configured';
+    } else {
+      healthStatus.checks.powerbi.status = 'NOT_CONFIGURED';
+      healthStatus.checks.powerbi.message = 'Power BI service is not configured';
+    }
+  } catch (error) {
+    healthStatus.checks.powerbi.status = 'ERROR';
+    healthStatus.checks.powerbi.message = 'Error checking Power BI configuration';
+  }
+
+  // Determinar código de estado HTTP
+  const httpStatus = healthStatus.status === 'OK' ? 200 : 
+                     healthStatus.status === 'DEGRADED' ? 200 : 503;
+
+  res.status(httpStatus).json(healthStatus);
 });
 
 // Ruta de login (para redirección del frontend)
