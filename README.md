@@ -4,6 +4,8 @@ Backend del proyecto smartview desarrollado con Node.js y Express.
 
 ## Instalación
 
+### Opción 1: Instalación Local
+
 1. Instalar dependencias:
 ```bash
 npm install
@@ -22,6 +24,45 @@ npm run dev
 # Modo producción
 npm start
 ```
+
+### Opción 2: Docker Compose (Recomendado)
+
+1. Configurar variables de entorno:
+```bash
+cp .docker-compose.env.example .env
+# Edita el archivo .env con tus valores
+```
+
+2. Construir y levantar los servicios:
+```bash
+# Modo producción
+docker-compose up -d
+
+# Modo desarrollo (con hot reload)
+docker-compose -f docker-compose.dev.yml up -d
+```
+
+3. Ver logs:
+```bash
+# Todos los servicios
+docker-compose logs -f
+
+# Solo backend
+docker-compose logs -f backend
+
+# Solo base de datos
+docker-compose logs -f postgres
+```
+
+4. Detener servicios:
+```bash
+docker-compose down
+
+# Detener y eliminar volúmenes (¡CUIDADO! Esto elimina la base de datos)
+docker-compose down -v
+```
+
+**Nota:** La aplicación estará disponible en `http://localhost:5000` y PostgreSQL en `localhost:5432`
 
 ## Estructura del Proyecto
 
