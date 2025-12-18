@@ -10,12 +10,38 @@ class PowerBIService {
     this.scope = process.env.POWERBI_SCOPE || 'https://analysis.windows.net/powerbi/api/.default';
     this.powerBiApiUrl = 'https://api.powerbi.com/v1.0/myorg';
     
+    // Inicializar cliente MSAL solo si las credenciales están disponibles
+    this.clientApp = null;
+    this.accessToken = null;
+    this.tokenExpiry = null;
+    
+    // Solo inicializar MSAL si hay credenciales válidas
+    if (this.isConfigured()) {
+      this.initializeMSAL();
+    }
+  }
+
+  /**
+   * Inicializar el cliente MSAL con las credenciales
+   */
+  initializeMSAL() {
+    if (!this.clientId || !this.clientSecret || !this.tenantId) {
+      return;
+    }
+
     // Para client_credentials, la authority debe ser el tenant específico, no "common"
     // Construir authority directamente con el tenant ID
     const authorityBase = 'https://login.microsoftonline.com';
     const authority = this.tenantId 
       ? `${authorityBase}/${this.tenantId}`
       : `${authorityBase}/common`; // Fallback solo si no hay tenant ID
+    
+    // Validar que tenantId no sea un valor reservado
+    const reservedTenants = ['common', 'organizations', 'consumers'];
+    if (reservedTenants.includes(this.tenantId.toLowerCase())) {
+      console.warn('⚠️  Tenant ID no puede ser "common", "organizations" o "consumers" para client_credentials flow');
+      return;
+    }
     
     // Configuración de MSAL
     this.msalConfig = {
@@ -26,9 +52,12 @@ class PowerBIService {
       }
     };
     
-    this.clientApp = new ConfidentialClientApplication(this.msalConfig);
-    this.accessToken = null;
-    this.tokenExpiry = null;
+    try {
+      this.clientApp = new ConfidentialClientApplication(this.msalConfig);
+    } catch (error) {
+      console.error('⚠️  Error al inicializar MSAL:', error.message);
+      this.clientApp = null;
+    }
   }
 
   /**
@@ -36,6 +65,18 @@ class PowerBIService {
    */
   async getAccessToken() {
     try {
+      // Verificar que MSAL esté inicializado
+      if (!this.clientApp) {
+        // Intentar inicializar si no está inicializado
+        if (this.isConfigured()) {
+          this.initializeMSAL();
+        }
+        
+        if (!this.clientApp) {
+          throw new Error('MSAL no está inicializado. Verifica las credenciales de Power BI.');
+        }
+      }
+
       // Si el token existe y no ha expirado, retornarlo
       if (this.accessToken && this.tokenExpiry && new Date() < this.tokenExpiry) {
         return this.accessToken;
@@ -213,12 +254,22 @@ class PowerBIService {
    * Verificar si las credenciales están configuradas
    */
   isConfigured() {
-    const hasCredentials = !!(this.clientId && this.clientSecret && this.tenantId && this.workspaceId);
+    // Verificar que todas las credenciales necesarias estén presentes y no vacías
+    const hasCredentials = !!(
+      this.clientId && 
+      this.clientSecret && 
+      this.tenantId && 
+      this.workspaceId &&
+      this.clientId.trim() !== '' &&
+      this.clientSecret.trim() !== '' &&
+      this.tenantId.trim() !== '' &&
+      this.workspaceId.trim() !== ''
+    );
     
     // Validar que tenantId no sea un valor reservado para client_credentials
-    if (hasCredentials) {
+    if (hasCredentials && this.tenantId) {
       const reservedTenants = ['common', 'organizations', 'consumers'];
-      if (reservedTenants.includes(this.tenantId.toLowerCase())) {
+      if (reservedTenants.includes(this.tenantId.toLowerCase().trim())) {
         console.warn('⚠️  Tenant ID no puede ser "common", "organizations" o "consumers" para client_credentials flow');
         return false;
       }
@@ -226,7 +277,7 @@ class PowerBIService {
       // Validar formato del client secret (debe ser un string largo, no un GUID)
       // Los secret IDs son GUIDs, los secret values son strings largos
       const guidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-      if (guidPattern.test(this.clientSecret)) {
+      if (this.clientSecret && guidPattern.test(this.clientSecret.trim())) {
         console.warn('⚠️  AZURE_CLIENT_SECRET parece ser un Secret ID (GUID). Debes usar el Secret VALUE (valor del secreto), no el ID.');
         console.warn('⚠️  Para obtener el valor correcto: Azure Portal > App registrations > Tu app > Certificates & secrets > Copia el VALUE (no el ID)');
         return false;
