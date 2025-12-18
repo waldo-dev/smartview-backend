@@ -45,3 +45,4 @@ backend/
 - `GET /` - Información de la API
 - `GET /health` - Health check del servidor
 
+
