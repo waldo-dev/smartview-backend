@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import routes from './routes/index.js';
+import sequelize from './config/database.js';
 
 // Cargar variables de entorno
 dotenv.config();
@@ -27,6 +28,14 @@ app.get('/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date().toISOString() });
 });
 
+// Ruta de login (para redirección del frontend)
+app.get('/login', (req, res) => {
+  res.json({ 
+    message: 'Por favor, usa el endpoint POST /api/auth/login para autenticarte',
+    loginEndpoint: '/api/auth/login'
+  });
+});
+
 // Rutas de la API
 app.use('/api', routes);
 
@@ -41,8 +50,29 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Error interno del servidor' });
 });
 
-// Iniciar servidor
-app.listen(PORT, () => {
-  console.log(`🚀 Servidor corriendo en http://localhost:${PORT}`);
-});
+// Inicializar base de datos y servidor
+const startServer = async () => {
+  try {
+    // Probar conexión a la base de datos
+    await sequelize.authenticate();
+    console.log('✅ Conexión a la base de datos establecida correctamente');
+
+    // Sincronizar modelos (solo en desarrollo)
+    // En producción, usar migraciones
+    if (process.env.NODE_ENV !== 'production') {
+      // await sequelize.sync({ alter: true });
+      // console.log('✅ Modelos sincronizados con la base de datos');
+    }
+
+    // Iniciar servidor
+    app.listen(PORT, () => {
+      console.log(`🚀 Servidor corriendo en http://localhost:${PORT}`);
+    });
+  } catch (error) {
+    console.error('❌ Error al iniciar el servidor:', error);
+    process.exit(1);
+  }
+};
+
+startServer();
 
